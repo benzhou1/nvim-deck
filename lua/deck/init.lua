@@ -154,6 +154,12 @@ local Context = require('deck.Context')
 ---@field public topk_size integer
 
 ---@doc.type
+---@class deck.StartConfigSpecifier.Preview
+---@field public win_opts? fun(curr_height: integer): table
+---@field public set_title? fun(win_config: table, filename: string?): table
+---@field public win_hl? string
+
+---@doc.type
 ---@class deck.StartConfigSpecifier
 ---@field public name? string
 ---@field public view? fun(): deck.View
@@ -169,6 +175,7 @@ local Context = require('deck.Context')
 ---@field public dedup? boolean
 ---@field public query? string
 ---@field public auto_abort? boolean
+---@field public preview? { win_opts?: table, mode?: string }
 
 ---@doc.type
 ---@class deck.StartConfig: deck.StartConfigSpecifier
@@ -245,6 +252,7 @@ local internal = {
       dedup = true,
       query = '',
       auto_abort = true,
+      preview = {},
     },
   },
 }
@@ -334,8 +342,7 @@ function deck.start(sources, start_config_specifier)
   local source = sources --[[@as deck.Source]]
 
   --- check start_config.
-  local start_config = validate.start_config(kit.merge(start_config_specifier or {},
-    internal.config.default_start_config or {}) --[[@as deck.StartConfig]])
+  local start_config = validate.start_config(kit.merge(start_config_specifier or {}, internal.config.default_start_config or {}) --[[@as deck.StartConfig]])
   start_config.name = start_config.name or source.name
 
   -- create context.
