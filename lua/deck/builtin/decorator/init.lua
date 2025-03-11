@@ -100,6 +100,7 @@ decorators.query_matches = {
         end_col = match[2],
         hl_group = 'Search',
         ephemeral = true,
+        priority = 9999,
       })
     end
     return decorations
