@@ -55,6 +55,18 @@ return setmetatable({
     end
   end,
 
+  --- Remove entry.
+  ---@param self unknown
+  ---@param target_path string
+  remove = function(self, target_path)
+    for i, path in ipairs(self.file.contents) do
+      if path == target_path then
+        table.remove(self.file.contents, i)
+        return
+      end
+    end
+  end,
+
   ---Add entry.
   ---@param self unknown
   ---@param target_path string
@@ -80,7 +92,10 @@ return setmetatable({
     table.insert(self.file.contents, target_path)
   end,
 }, {
-  ---@param option { ignore_paths?: string[] }
+  ---@class RecentFilesOptions
+  ---@field ignore_paths string[]
+  ---@field transform fun(item: deck.Item)
+  ---@param option RecentFilesOptions
   __call = function(self, option)
     option = option or {}
     option.ignore_paths = option.ignore_paths or { vim.fn.expand('%:p'):gsub('/$', '') }
@@ -103,12 +118,16 @@ return setmetatable({
             local path = contents[i]
             if not ignore_path_map[path] then
               if vim.fn.filereadable(path) == 1 then
-                ctx.item({
+                local item = {
                   display_text = vim.fn.fnamemodify(path, ':~'),
                   data = {
                     filename = path,
                   },
-                })
+                }
+                if option.transform ~= nil then
+                  option.transform(item)
+                end
+                ctx.item(item)
                 sync_count = sync_count - 1
               end
             end
@@ -122,12 +141,16 @@ return setmetatable({
             local path = contents[i]
             if not ignore_path_map[path] then
               if IO.exists(path):await() then
-                ctx.item({
+                local item = {
                   display_text = vim.fn.fnamemodify(path, ':~'),
                   data = {
                     filename = path,
                   },
-                })
+                }
+                if option.transform ~= nil then
+                  option.transform(item)
+                end
+                ctx.item(item)
               end
             end
             i = i - 1
