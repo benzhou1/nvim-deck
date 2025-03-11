@@ -232,6 +232,7 @@ return function(config)
 
     ---Start query edit prompt.
     prompt = function(ctx)
+      local start_config = ctx:get_config()
       Keymap.send(Keymap.to_sendable(function()
         if not view.is_visible(ctx) then
           return
@@ -239,6 +240,7 @@ return function(config)
         local group = vim.api.nvim_create_augroup('deck.builtin.view.bottom_picker.prompt', {
           clear = true,
         })
+        local canceled = false
         vim.schedule(function()
           vim.api.nvim__redraw({
             flush = true,
@@ -251,9 +253,33 @@ return function(config)
               ctx.set_query(vim.fn.getcmdline())
             end,
           })
+          if start_config.mode == 'common' then
+            -- Simulate behaviour of other pickers, pressing down will select the next item
+            vim.keymap.set('c', '<down>', function()
+              canceled = true
+              vim.api.nvim_feedkeys(Keymap.termcodes('<esc>'), 'n', true)
+              vim.schedule(function()
+                vim.api.nvim_feedkeys(Keymap.termcodes('<down>'), 'n', true)
+              end)
+            end, { buffer = true })
+          end
         end)
-        vim.fn.input('$ ', ctx.get_query())
+        local res = vim.fn.input({
+          prompt = '$ ',
+          default = ctx.get_query(),
+          cancelreturn = ' ',
+        })
+        if start_config.mode == 'common' then
+          -- Simulate behaviour of other pickers, pressing enter will select the first item
+          if res ~= ' ' and not canceled then
+            vim.schedule(function()
+              ctx.do_action('default')
+            end)
+          end
+          vim.keymap.del('c', '<down>', { buffer = true })
+        end
         vim.api.nvim_clear_autocmds({ group = group })
+        canceled = false
       end))
     end,
 
