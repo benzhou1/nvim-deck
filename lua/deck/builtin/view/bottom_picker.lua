@@ -16,7 +16,7 @@ local function is_visible(win)
   return vim.api.nvim_win_is_valid(win)
 end
 
----@param config { max_height: number }
+---@param config { max_height: number, static_height: integer }
 ---@return deck.View
 return function(config)
   local spinner = {
@@ -39,6 +39,9 @@ return function(config)
   ---@return integer
   local function calc_winheight(ctx)
     local buf_height = vim.api.nvim_buf_line_count(ctx.buf)
+    if config.static_height then
+      return config.static_height
+    end
     if config.max_height <= buf_height then
       return config.max_height
     end
@@ -53,6 +56,9 @@ return function(config)
       end
     end
     local min_height = vim.o.laststatus == 0 and vim.o.cmdheight == 0 and 2 or 1
+    if config.static_height then
+      return config.static_height
+    end
     return math.max(min_height, buf_height)
   end
 
