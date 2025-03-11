@@ -176,6 +176,7 @@ local Context = require('deck.Context')
 ---@field public query? string
 ---@field public auto_abort? boolean
 ---@field public preview? { win_opts?: table, mode?: string }
+---@field public mode? "def" | "common"
 
 ---@doc.type
 ---@class deck.StartConfig: deck.StartConfigSpecifier
@@ -189,6 +190,8 @@ local Context = require('deck.Context')
 ---@field public disable_previewers? string[]
 ---@field public dedup boolean
 ---@field public query string
+---@field public root_dir string?
+---@field public toggles table<string, boolean>
 
 ---@doc.type
 ---@class deck.ConfigSpecifier
@@ -253,6 +256,8 @@ local internal = {
       query = '',
       auto_abort = true,
       preview = {},
+      mode = 'def',
+      toggles = {},
     },
   },
 }
