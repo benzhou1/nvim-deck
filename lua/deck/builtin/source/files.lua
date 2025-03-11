@@ -19,17 +19,21 @@ local function to_item(filename)
   }
 end
 
----@alias deck.builtin.source.files.Finder fun(root_dir: string, ignore_globs: string[], ctx: deck.ExecuteContext)
+---@class FilesOptions
+---@field root_dir? string
+---@field ignore_globs? string[]
+---@field transform? fun(item: deck.Item)
+---@alias deck.builtin.source.files.Finder fun(option: FilesOptions, ctx: deck.ExecuteContext)
 
 ---@type deck.builtin.source.files.Finder
-local function ripgrep(root_dir, ignore_globs, ctx)
+local function ripgrep(opts, ctx)
   local command = { 'rg', '--files', '-.' }
-  for _, glob in ipairs(ignore_globs or {}) do
+  for _, glob in ipairs(opts.ignore_globs or {}) do
     table.insert(command, '--glob')
     table.insert(command, '!' .. glob)
   end
 
-  root_dir = vim.fs.normalize(root_dir)
+  local root_dir = vim.fs.normalize(opts.root_dir)
   ctx.on_abort(System.spawn(command, {
     cwd = root_dir,
     env = {},
@@ -37,7 +41,11 @@ local function ripgrep(root_dir, ignore_globs, ctx)
       ignore_empty = true,
     }),
     on_stdout = function(text)
-      ctx.item(to_item(IO.join(root_dir, text)))
+      local item = to_item(IO.join(root_dir, text))
+      if opts.transform ~= nil then
+        opts.transform(item)
+      end
+      ctx.item(item)
     end,
     on_stderr = function()
       -- noop
@@ -49,15 +57,15 @@ local function ripgrep(root_dir, ignore_globs, ctx)
 end
 
 ---@type deck.builtin.source.files.Finder
-local function walk(root_dir, ignore_globs, ctx)
+local function walk(opts, ctx)
   local ignore_glob_patterns = vim
-    .iter(ignore_globs or {})
+    .iter(opts.ignore_globs or {})
     :map(function(glob)
       return vim.glob.to_lpeg(glob)
     end)
     :totable()
 
-  IO.walk(root_dir, function(err, entry)
+  IO.walk(opts.root_dir, function(err, entry)
     if err then
       return
     end
@@ -102,8 +110,13 @@ end
   name = "root_dir"
   type = "string"
   desc = "Target root directory."
+
+  [[options]]
+  name = "transform"
+  type = "fun(item: deck.Item)?"
+  desc = "Function that allows you to modify an item before it is added to the picker"
 ]=]
----@param option { root_dir: string, ignore_globs?: string[] }
+---@param option FilesOptions
 return function(option)
   local root_dir = vim.fs.normalize(vim.fn.fnamemodify(option.root_dir, ':p'))
   if vim.fn.filereadable(root_dir) == 1 then
@@ -121,10 +134,17 @@ return function(option)
         end
       end
 
+      local root_path = option.root_dir
+      local config = ctx.get_config()
+      if config.toggles.cwd == true then
+        root_path = vim.fn.getcwd()
+      end
+
+      local new_option = vim.tbl_deep_extend('keep', { root_dir = root_path }, option)
       if vim.fn.executable('rg') == 1 then
-        ripgrep(root_dir, ignore_globs, ctx)
+        ripgrep(new_option, ctx)
       else
-        walk(root_dir, ignore_globs, ctx)
+        walk(new_option, ctx)
       end
     end,
     actions = {
