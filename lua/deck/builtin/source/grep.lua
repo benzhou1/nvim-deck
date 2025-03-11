@@ -30,11 +30,17 @@ local System = require('deck.kit.System')
   type = "boolean?"
   default = "false"
   desc = "Sort results by filename and line number."
+
+  [[options]]
+  name = "transform"
+  type = "fun(item: deck.Item, text: string)?"
+  desc = "Transform item with matched text."
 ]=]
 ---@class deck.builtin.source.grep.Option
 ---@field root_dir string
 ---@field ignore_globs? string[]
 ---@field sort? boolean
+---@field transform? fun(item: deck.Item, text: string)
 ---@param option deck.builtin.source.grep.Option
 return function(option)
   local function parse_query(query)
@@ -86,7 +92,7 @@ return function(option)
           local col = tonumber(text:match(':%d+:(%d+):'))
           local match = text:match(':%d+:%d+:(.*)$')
           if filename and match then
-            ctx.item({
+            local item = {
               display_text = {
                 { ('%s (%s:%s): '):format(filename, lnum, col) },
                 { match,                                       'Comment' },
@@ -95,8 +101,13 @@ return function(option)
                 filename = IO.join(option.root_dir, filename),
                 lnum = lnum,
                 col = col,
+                query = query,
               },
-            })
+            }
+            if option.transform ~= nil then
+              option.transform(item, text)
+            end
+            ctx.item(item)
           end
         end,
         on_exit = function()
