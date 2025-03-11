@@ -79,6 +79,7 @@ end
 ---@param file { contents: string[], filename?: string, filetype?: string, lnum?: integer, col?: integer, end_lnum?: integer, end_col?: integer }
 function x.open_preview_buffer(win, file)
   local buf = vim.api.nvim_create_buf(false, true)
+  local start_config = require("deck").get_config().default_start_config
 
   -- set contents.
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, file.contents)
@@ -150,8 +151,12 @@ function x.open_preview_buffer(win, file)
   end)
   local win_config = vim.api.nvim_win_get_config(win)
   if win_config.relative then
-    win_config.footer = file.filename and vim.fn.fnamemodify(file.filename, ':~') or ''
-    win_config.footer_pos = 'left'
+    if start_config.preview.set_title then
+      start_config.preview.set_title(win_config, file.filename)
+    else
+      win_config.footer = file.filename and vim.fn.fnamemodify(file.filename, ':~') or ''
+      win_config.footer_pos = 'left'
+    end
     vim.api.nvim_win_set_config(win, win_config)
   end
 end

@@ -107,9 +107,15 @@ return function(config)
           state.preview_win = nil
         end
       else
+        local start_config = ctx:get_config()
         local available_height = vim.o.lines - next_height
         local preview_height = math.floor(available_height * 0.8)
-        local win_config = {
+        local win_opts = {}
+        if start_config.preview.win_opts then
+          win_opts = start_config.preview.win_opts(curr_height)
+        end
+
+        local win_config = vim.tbl_deep_extend('keep', win_opts, {
           noautocmd = true,
           relative = 'editor',
           width = math.floor(vim.o.columns * 0.8),
@@ -118,7 +124,7 @@ return function(config)
           col = math.floor(vim.o.columns * 0.1),
           style = 'minimal',
           border = 'rounded',
-        }
+        })
         if not is_visible(state.preview_win) then
           state.preview_win = vim.api.nvim_open_win(vim.api.nvim_create_buf(false, true), false, win_config)
         else
@@ -127,7 +133,7 @@ return function(config)
         end
         ctx.get_previewer().preview(ctx, item, { win = state.preview_win })
         vim.api.nvim_set_option_value('wrap', false, { win = state.preview_win })
-        vim.api.nvim_set_option_value('winhighlight', 'Normal:Normal,FloatBorder:Normal,FloatTitle:Normal,FloatFooter:Normal', { win = state.preview_win })
+        vim.api.nvim_set_option_value('winhighlight', start_config.preview.win_hl or 'Normal:Normal,FloatBorder:WinSeparator,FloatTitle:Normal,FloatFooter:Normal', { win = state.preview_win })
         vim.api.nvim_set_option_value('number', true, { win = state.preview_win })
         vim.api.nvim_set_option_value('numberwidth', 5, { win = state.preview_win })
         vim.api.nvim_set_option_value('scrolloff', 0, { win = state.preview_win })
