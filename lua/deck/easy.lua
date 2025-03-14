@@ -6,6 +6,7 @@ local augroup = vim.api.nvim_create_augroup('deck.easy', { clear = true })
 ---@field get_cwd? fun(): string
 ---@field get_buffer_path? fun(bufnr: number): string
 ---@field get_project_root? fun(path: string): string
+---@field setup_recent_autocmds? boolean
 
 local easy = {}
 
@@ -40,23 +41,25 @@ function easy.setup(config)
 
   -- Manage recent_files and recent_dirs automatically.
   -- If you want to customize, you can define autocmd by yourself.
-  do
-    vim.api.nvim_create_autocmd('BufEnter', {
-      group = augroup,
-      callback = function()
-        local bufname = vim.api.nvim_buf_get_name(0)
-        if vim.fn.filereadable(bufname) == 1 then
-          require('deck.builtin.source.recent_files'):add(vim.fs.normalize(bufname))
-        end
-      end,
-    })
+  if config.setup_recent_autocmds ~= false then
+    do
+      vim.api.nvim_create_autocmd('BufEnter', {
+        group = augroup,
+        callback = function()
+          local bufname = vim.api.nvim_buf_get_name(0)
+          if vim.fn.filereadable(bufname) == 1 then
+            require('deck.builtin.source.recent_files'):add(vim.fs.normalize(bufname))
+          end
+        end,
+      })
 
-    vim.api.nvim_create_autocmd('DirChanged', {
-      group = augroup,
-      callback = function(e)
-        require('deck.builtin.source.recent_dirs'):add(e.cwd --[[@as string]])
-      end,
-    })
+      vim.api.nvim_create_autocmd('DirChanged', {
+        group = augroup,
+        callback = function(e)
+          require('deck.builtin.source.recent_dirs'):add(e.cwd --[[@as string]])
+        end,
+      })
+    end
   end
 
   -- Setup start presets.
