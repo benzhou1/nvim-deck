@@ -15,6 +15,11 @@ local System = require('deck.kit.System')
   """
 
   [[options]]
+  name = "name"
+  type = "string?"
+  desc = "Override grep source name."
+
+  [[options]]
   name = "root_dir"
   type = "string"
   desc = "Target root directory."
@@ -29,11 +34,18 @@ local System = require('deck.kit.System')
   name = "transform"
   type = "fun(item: deck.Item, text: string)?"
   desc = "Transform item with matched text."
+
+  [[options]]
+  name = "cmd"
+  type = "fun(query: string): string[]?"
+  desc = "Custom command to execute."
 ]=]
 ---@class deck.builtin.source.grep.Option
 ---@field root_dir string
 ---@field ignore_globs? string[]
 ---@field transform? fun(item: deck.Item, text: string)
+---@field cmd? fun(query: string): string[]
+---@field name? string
 ---@param option deck.builtin.source.grep.Option
 return function(option)
   local function parse_query(query)
@@ -46,7 +58,7 @@ return function(option)
 
   ---@type deck.Source
   return {
-    name = 'grep',
+    name = option.name or 'grep',
     parse_query = parse_query,
     execute = function(ctx)
       local query = parse_query(ctx.get_query()).dynamic_query
@@ -68,6 +80,10 @@ return function(option)
       end
       table.insert(command, query)
 
+      if option.cmd ~= nil then
+        command = option.cmd(query)
+      end
+
       ctx.on_abort(System.spawn(command, {
         cwd = option.root_dir,
         env = {},
@@ -75,26 +91,34 @@ return function(option)
           ignore_empty = true,
         }),
         on_stdout = function(text)
-          local filename = text:match('^[^:]+')
-          local lnum = tonumber(text:match(':(%d+):'))
-          local col = tonumber(text:match(':%d+:(%d+):'))
-          local match = text:match(':%d+:%d+:(.*)$')
-          if filename and match then
-            local item = {
-              display_text = {
-                { ('%s (%s:%s): '):format(filename, lnum, col) },
-                { match,                                       'Comment' },
-              },
-              data = {
-                filename = IO.join(option.root_dir, filename),
-                lnum = lnum,
-                col = col,
-                query = query,
-              },
-            }
-            if option.transform ~= nil then
-              option.transform(item, text)
+          local item = { data = { query = query } }
+          if not option.transform then
+            local filename = text:match('^[^:]+')
+            local lnum = tonumber(text:match(':(%d+):'))
+            local col = tonumber(text:match(':%d+:(%d+):'))
+            local match = text:match(':%d+:%d+:(.*)$')
+            if filename and match then
+              item = {
+                display_text = {
+                  { ('%s (%s:%s): '):format(filename, lnum, col) },
+                  { match, 'Comment' },
+                },
+                data = {
+                  filename = IO.join(option.root_dir, filename),
+                  lnum = lnum,
+                  col = col,
+                  query = query,
+                },
+              }
+              if option.transform ~= nil then
+                option.transform(item, text)
+              end
             end
+          end
+          if option.transform ~= nil then
+            option.transform(item, text)
+          end
+          if item.display_text ~= nil then
             ctx.item(item)
           end
         end,
