@@ -40,6 +40,7 @@ previewer.filename = {
       col = item.data.col,
       end_lnum = item.data.end_lnum,
       end_col = item.data.end_col,
+      ctag = item.data.ctag,
     })
   end,
 }

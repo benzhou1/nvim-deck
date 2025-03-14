@@ -76,10 +76,10 @@ end
 
 ---Open a preview buffer with the given data.
 ---@param win integer
----@param file { contents: string[], filename?: string, filetype?: string, lnum?: integer, col?: integer, end_lnum?: integer, end_col?: integer }
+---@param file { contents: string[], filename?: string, filetype?: string, lnum?: integer, col?: integer, end_lnum?: integer, end_col?: integer, ctag?: string }
 function x.open_preview_buffer(win, file)
   local buf = vim.api.nvim_create_buf(false, true)
-  local start_config = require("deck").get_config().default_start_config
+  local start_config = require('deck').get_config().default_start_config
 
   -- set contents.
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, file.contents)
@@ -147,6 +147,12 @@ function x.open_preview_buffer(win, file)
   vim.api.nvim_win_set_buf(win, buf)
   vim.api.nvim_win_call(win, function()
     vim.api.nvim_win_set_cursor(win, { file.lnum or 1, (file.col or 1) - 1 })
+    if file.ctag then
+      vim.fn.search(file.ctag, 'W')
+      local ns = vim.api.nvim_create_namespace(('deck.x.open_preview_buffer:%s'):format(buf))
+      local pos = vim.api.nvim_win_get_cursor(win)
+      vim.api.nvim_buf_set_extmark(buf, ns, pos[1] - 1, 0, { line_hl_group = 'Visual' })
+    end
     vim.cmd.normal({ 'zz', bang = true })
   end)
   local win_config = vim.api.nvim_win_get_config(win)
