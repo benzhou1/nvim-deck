@@ -45,6 +45,9 @@ local function ripgrep(opts, ctx)
       if opts.transform ~= nil then
         opts.transform(item)
       end
+      if not item.data.filename then
+        return
+      end
       ctx.item(item)
     end,
     on_stderr = function()
