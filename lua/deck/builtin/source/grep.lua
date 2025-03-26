@@ -45,12 +45,19 @@ local System = require('deck.kit.System')
   name = "cmd"
   type = "fun(query: string): string[]?"
   desc = "Custom command to execute."
+
+  [[options]]
+  name = "live"
+  type = "boolean?"
+  default = "false"
+  desc = "Enable live grep."
 ]=]
 ---@class deck.builtin.source.grep.Option
 ---@field root_dir string
 ---@field ignore_globs? string[]
 ---@field sort? boolean
 ---@field transform? fun(item: deck.Item, text: string)
+---@field live? boolean
 ---@field cmd? fun(query: string): string[]
 ---@field name? string
 ---@param option deck.builtin.source.grep.Option
@@ -71,7 +78,7 @@ return function(option)
     parse_query = parse_query,
     execute = function(ctx)
       local query = parse_query(ctx.get_query()).dynamic_query
-      if query == '' then
+      if option.live ~= true and query == '' then
         return ctx.done()
       end
 
@@ -96,8 +103,14 @@ return function(option)
         command = option.cmd(query)
       end
 
+      local root_dir = option.root_dir
+      local config = ctx.get_config()
+      if config.toggles.cwd == true then
+        root_dir = vim.fn.getcwd()
+      end
+
       ctx.on_abort(System.spawn(command, {
-        cwd = option.root_dir,
+        cwd = root_dir,
         env = {},
         buffering = System.LineBuffering.new({
           ignore_empty = true,
@@ -116,7 +129,7 @@ return function(option)
                   { match, 'Comment' },
                 },
                 data = {
-                  filename = IO.join(option.root_dir, filename),
+                  filename = IO.join(root_dir, filename),
                   lnum = lnum,
                   col = col,
                   query = query,
@@ -128,7 +141,7 @@ return function(option)
             end
           end
           if option.transform ~= nil then
-            option.transform(item, text)
+            option.transform(item, text, root_dir)
           end
           if item.display_text ~= nil then
             ctx.item(item)
