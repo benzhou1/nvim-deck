@@ -124,6 +124,9 @@ return setmetatable({
                     filename = path,
                   },
                 }
+                if not item.display_text then
+                  return
+                end
                 if option.transform ~= nil then
                   option.transform(item)
                 end
