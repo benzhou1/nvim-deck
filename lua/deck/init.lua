@@ -192,6 +192,7 @@ local Context = require('deck.Context')
 ---@field public query string
 ---@field public root_dir string?
 ---@field public toggles table<string, boolean>
+---@field public start_prompt boolean
 
 ---@doc.type
 ---@class deck.ConfigSpecifier
@@ -258,6 +259,7 @@ local internal = {
       preview = {},
       mode = 'def',
       toggles = {},
+      start_prompt = false,
     },
   },
 }
