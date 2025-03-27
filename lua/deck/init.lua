@@ -153,9 +153,10 @@ local Context = require('deck.Context')
 
 ---@doc.type
 ---@class deck.StartConfigSpecifier.Preview
----@field public win_opts? fun(curr_height: integer): table
+---@field public win_opts? fun(curr_height?: integer): table
 ---@field public set_title? fun(win_config: table, filename: string?): table
 ---@field public win_hl? string
+---@field public mode? string
 
 ---@doc.type
 ---@class deck.StartConfigSpecifier
@@ -173,8 +174,7 @@ local Context = require('deck.Context')
 ---@field public dedup? boolean
 ---@field public query? string
 ---@field public auto_abort? boolean
----@field public preview? { win_opts?: table, mode?: string }
----@field public mode? "def" | "common"
+---@field public preview? deck.StartConfigSpecifier.Preview
 
 ---@doc.type
 ---@class deck.StartConfig: deck.StartConfigSpecifier

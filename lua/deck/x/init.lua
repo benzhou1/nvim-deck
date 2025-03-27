@@ -157,9 +157,10 @@ function x.open_preview_buffer(win, file)
     end
     vim.cmd.normal({ 'zz', bang = true })
   end)
+
   local win_config = vim.api.nvim_win_get_config(win)
-  if win_config.relative then
-    if start_config.preview.set_title then
+  if win_config and win_config.relative then
+    if start_config and start_config.preview.set_title then
       start_config.preview.set_title(win_config, file.filename)
     else
       win_config.footer = file.filename and vim.fn.fnamemodify(file.filename, ':~') or ''

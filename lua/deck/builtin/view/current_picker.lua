@@ -52,6 +52,7 @@ return function()
 
     -- update preview.
     local item = ctx.get_cursor_item()
+    local start_config = ctx:get_config()
     local deps = {
       item = item,
       preview_mode = ctx.get_preview_mode(),
@@ -78,6 +79,9 @@ return function()
           style = 'minimal',
           border = 'rounded',
         }
+        if start_config.preview.win_opts then
+          win_config = vim.tbl_deep_extend('keep', start_config.preview.win_opts(), win_config)
+        end
         if not is_visible(state.preview_win) then
           state.preview_win = vim.api.nvim_open_win(vim.api.nvim_create_buf(false, true), false, win_config)
         else
@@ -86,7 +90,7 @@ return function()
         end
         ctx.get_previewer().preview(ctx, item, { win = state.preview_win })
         vim.api.nvim_set_option_value('wrap', false, { win = state.preview_win })
-        vim.api.nvim_set_option_value('winhighlight', 'Normal:Normal,FloatBorder:Normal,FloatTitle:Normal,FloatFooter:Normal', { win = state.preview_win })
+        vim.api.nvim_set_option_value('winhighlight', start_config.preview.win_hl or 'Normal:Normal,FloatBorder:Normal,FloatTitle:Normal,FloatFooter:Normal', { win = state.preview_win })
         vim.api.nvim_set_option_value('number', true, { win = state.preview_win })
         vim.api.nvim_set_option_value('numberwidth', 5, { win = state.preview_win })
         vim.api.nvim_set_option_value('scrolloff', 0, { win = state.preview_win })
