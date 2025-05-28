@@ -124,6 +124,7 @@ return function()
 
     ---Start query edit prompt.
     prompt = function(ctx)
+      local start_config = ctx:get_config()
       Keymap.send(Keymap.to_sendable(function()
         if not view.is_visible(ctx) then
           return
@@ -144,7 +145,17 @@ return function()
             end,
           })
         end)
+
+        if start_config.before_prompt_cb then
+          start_config.before_prompt_cb(ctx)
+        end
+
         vim.fn.input('$ ', ctx.get_query())
+
+        if start_config.before_prompt_cb then
+          start_config.after_prompt_cb(ctx)
+        end
+
         vim.api.nvim_clear_autocmds({ group = group })
       end))
     end,

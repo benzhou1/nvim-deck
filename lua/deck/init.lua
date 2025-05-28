@@ -193,6 +193,8 @@ local Context = require('deck.Context')
 ---@field public root_dir string?
 ---@field public toggles table<string, boolean>
 ---@field public start_prompt boolean
+---@field public before_prompt_cb fun(ctx: deck.Context)
+---@field public after_prompt_cb fun(ctx: deck.Context)
 
 ---@doc.type
 ---@class deck.ConfigSpecifier
