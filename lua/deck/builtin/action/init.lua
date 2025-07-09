@@ -78,7 +78,11 @@ do
             vim.schedule(function()
               local lnum = vim.fn.search(item.data.ctag, 'W')
               if lnum == 0 then
-                vim.fn.search(item.data.ctag, 'bW')
+                lnum = vim.fn.search(item.data.ctag, 'bW')
+              end
+
+              if lnum ~= 0 then
+                vim.cmd("normal! m'")
               end
               vim.cmd.normal('zz')
             end)
