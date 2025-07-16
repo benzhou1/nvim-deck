@@ -20,7 +20,7 @@ local ScheduledTimer = require('deck.kit.Async.ScheduledTimer')
 ---@field is_syncing boolean
 ---@field controller deck.ExecuteContext.Controller?
 ---@field decoration_cache table<deck.Item, deck.Decoration[]>
----@field preview_cache { win?: integer, item?: deck.Item, cleanup?: fun() }
+---@field preview_cache { win?: integer, item?: deck.Item, cleanup?: fun(), buf?: integer }
 ---@field disposed boolean
 
 ---@doc.type
@@ -911,6 +911,7 @@ function Context.create(id, source, start_config)
       if state.preview_cache.win and vim.api.nvim_win_is_valid(state.preview_cache.win) then
         pcall(vim.api.nvim_win_hide, state.preview_cache.win)
         state.preview_cache.win = nil
+        state.preview_cache.buf = nil
       end
       state.preview_cache.item = nil
     end
@@ -976,16 +977,43 @@ function Context.create(id, source, start_config)
   -- close preview window if bufleave.
   do
     local preview_mode = context.get_preview_mode()
+    local target_buf = context.buf
     events.dispose.on(x.autocmd('BufLeave', function()
       preview_mode = context.get_preview_mode()
-      context.set_preview_mode(false)
+      vim.schedule(function()
+        -- Allow for entering preview buffer
+        if state.preview_cache.buf == nil or state.preview_cache.buf ~= target_buf then
+          context.set_preview_mode(false)
+        end
+      end)
     end, {
       pattern = ('<buffer=%s>'):format(context.buf),
     }))
-    events.dispose.on(x.autocmd('BufEnter', function()
-      context.set_preview_mode(preview_mode)
+    events.dispose.on(x.autocmd('BufEnter', function(event)
+      if state.preview_cache.buf == nil and state.preview_cache.win ~= nil then
+        state.preview_cache.buf = vim.api.nvim_win_get_buf(state.preview_cache.win)
+      end
+
+      -- Close preview when leaving the preview buffer
+      if state.preview_cache.buf and event.buf == state.preview_cache.buf then
+        events.dispose.on(x.autocmd('BufLeave', function()
+          preview_mode = true
+          context.set_preview_mode(false)
+        end, {
+          pattern = ('<buffer=%s>'):format(state.preview_cache.buf),
+          once = true,
+        }))
+      end
+
+      -- Dont want to store target buf when preview buffer is first created
+      if preview_mode then
+        target_buf = event.buf
+      end
+      if event.buf == context.buf then
+        context.set_preview_mode(preview_mode)
+      end
     end, {
-      pattern = ('<buffer=%s>'):format(context.buf),
+      pattern = '*',
     }))
   end
 
