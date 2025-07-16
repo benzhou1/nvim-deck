@@ -53,7 +53,7 @@ previewer.filename = {
 previewer.bufnr = {
   name = 'bufnr',
   resolve = function(_, item)
-    return item.data.bufnr
+    return item.data.bufnr and item.data.filename == nil
   end,
   preview = function(_, item, env)
     x.open_preview_buffer(env.open_preview_win() --[[@as integer]], {

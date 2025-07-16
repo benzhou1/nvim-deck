@@ -151,10 +151,24 @@ return function(position, calc_height_or_width)
         style = 'minimal',
         border = 'rounded',
       }
+
+      local start_config = ctx.get_config()
+      local winhl = "FloatBorder:Normal,FloatTitle:Normal,FloatFooter:Normal"
+      if start_config then
+        if start_config.preview.win_opts then
+          local height = vim.api.nvim_win_get_height(state.win)
+          for k, v in pairs(start_config.preview.win_opts(height)) do
+            win_config[k] = v
+          end
+        end
+        if start_config.preview.win_hl then
+          winhl = start_config.preview.win_hl
+        end
+      end
+
       local preview_win = vim.api.nvim_open_win(vim.api.nvim_create_buf(false, true), false, win_config)
       vim.api.nvim_set_option_value('wrap', false, { win = preview_win })
-      vim.api.nvim_set_option_value('winhighlight', 'FloatBorder:Normal,FloatTitle:Normal,FloatFooter:Normal',
-        { win = preview_win })
+      vim.api.nvim_set_option_value('winhighlight', winhl, { win = preview_win })
       vim.api.nvim_set_option_value('number', true, { win = preview_win })
       vim.api.nvim_set_option_value('numberwidth', 5, { win = preview_win })
       vim.api.nvim_set_option_value('scrolloff', 0, { win = preview_win })
