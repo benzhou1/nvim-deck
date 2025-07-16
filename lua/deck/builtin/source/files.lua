@@ -8,6 +8,7 @@ local System = require('deck.kit.System')
 ---@alias deck.builtin.source.files.Finder fun(option: FilesOptions, ctx: deck.ExecuteContext)
 
 ---@type deck.builtin.source.files.Finder
+---@param opts FilesOptions
 local function ripgrep(opts, ctx)
   local command = { 'rg', '--files', '-.' }
   for _, glob in ipairs(opts.ignore_globs or {}) do
@@ -15,7 +16,7 @@ local function ripgrep(opts, ctx)
     table.insert(command, '!' .. glob)
   end
 
-  root_dir = vim.fs.normalize(root_dir)
+  opts.root_dir = vim.fs.normalize(opts.root_dir)
 
   ---The metatable for `item.data.filename`.
   local filename_mt = {
@@ -33,14 +34,15 @@ local function ripgrep(opts, ctx)
     local item = setmetatable({
       display_text = text,
       filter_text = text,
-      root_dir = root_dir,
+      root_dir = opts.root_dir,
+      filename = text,
     }, filename_mt)
     item.data = item
     return item
   end
 
   ctx.on_abort(System.spawn(command, {
-    cwd = root_dir,
+    cwd = opts.root_dir,
     env = {},
     buffering = System.LineBuffering.new({
       ignore_empty = true,
