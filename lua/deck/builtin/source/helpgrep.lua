@@ -9,9 +9,18 @@ local System = require('deck.kit.System')
   desc = "Live grep all helptags. (required `ripgrep`)"
   example = """
     deck.start(require('deck.builtin.source.helpgrep')())
+
+  [[options]]
+  name = "transform"
+  type = "fun(item: deck.Item, text: string, root_dir: string)?"
+  desc = "Transform item with matched text."
   """
 ]=]
-return function()
+---@class deck.builtin.source.helpgrep.Option
+---@field transform? fun(item: deck.Item, text: string, root_dir: string)
+
+---@param option deck.builtin.source.helpgrep.Option
+return function(option)
   local helps = vim.api.nvim_get_runtime_file('doc/*.txt', true)
 
   local function parse_query(query)
@@ -56,6 +65,7 @@ return function()
       -- create query.
       -- e.g.) 'statu line' -> `\*[^\*]*statu[^\*]*.*?line[^\*]*\*`
       local parts = {}
+      local original_query = query
       for _, q in ipairs(vim.split(query, ' ')) do
         table.insert(parts, vim.fn.escape(q, [=[\[]().*?+]=]))
       end
@@ -78,17 +88,24 @@ return function()
             local lnum = tonumber(text:match(':(%d+):'))
             local col = tonumber(text:match(':%d+:(%d+):'))
             local match = text:match(':%d+:%d+:(.*)$')
-            ctx.item({
-              display_text = {
-                { ('%s (%s:%s): '):format(filename, lnum, col) },
-                { match, 'Comment' },
-              },
-              data = {
-                filename = IO.join(dir, filename),
-                lnum = lnum,
-                col = col,
-              },
-            })
+            local item = { data = { query = original_query } }
+            if not option.transform then
+              item = {
+                display_text = {
+                  { ('%s (%s:%s): '):format(filename, lnum, col) },
+                  { match, 'Comment' },
+                },
+                data = {
+                  filename = IO.join(dir, filename),
+                  lnum = lnum,
+                  col = col,
+                },
+              }
+            end
+            if option.transform then
+              option.transform(item, text, dir)
+            end
+            ctx.item(item)
           end,
           on_stderr = function(text)
             notify.show({
