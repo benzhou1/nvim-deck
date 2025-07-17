@@ -73,6 +73,7 @@ end
 ---Create buffer object.
 ---@return deck.kit.buffer.Buffer
 function kit.buffer_tbl()
+  local tmp_get = {}
   local buf = {}
   ---@type deck.kit.buffer.Buffer
   local buffer
@@ -82,7 +83,7 @@ function kit.buffer_tbl()
     end,
     get = function(byte_size)
       if byte_size == nil then
-        local data = table.concat(buf)
+        local data = table.concat(buf, '')
         kit.clear(buf)
         return data
       end
@@ -90,18 +91,18 @@ function kit.buffer_tbl()
         return ''
       end
 
-      local data = {}
+      kit.clear(tmp_get)
       local off = 0
       local i = 1
       while i <= #buf do
         local b = buf[i]
         if off + #b >= byte_size then
           local data_size = byte_size - off
-          if #b == data_size then
-            table.insert(data, b)
+          if #b <= data_size then
+            table.insert(tmp_get, b)
             table.remove(buf, i)
           else
-            table.insert(data, b:sub(1, data_size))
+            table.insert(tmp_get, b:sub(1, data_size))
             buf[i] = b:sub(data_size + 1)
           end
           break
@@ -109,7 +110,7 @@ function kit.buffer_tbl()
         i = i + 1
         off = off + #b
       end
-      return table.concat(data)
+      return table.concat(tmp_get, '')
     end,
     len = function()
       local len = 0
@@ -376,75 +377,6 @@ function kit.set(value, path, new_value)
     current = current[key]
   end
   current[path[#path]] = new_value
-end
-
----Create debounced callback.
----@generic T: fun(...: any): nil
----@param callback T
----@param timeout_ms integer
----@return T
-function kit.debounce(callback, timeout_ms)
-  local timer = assert(vim.uv.new_timer())
-  return setmetatable({
-    timeout_ms = timeout_ms,
-    is_running = function()
-      return timer:is_active()
-    end,
-    stop = function()
-      timer:stop()
-    end,
-  }, {
-    __call = function(self, ...)
-      local arguments = { ... }
-
-      self.running = true
-      timer:stop()
-      timer:start(self.timeout_ms, 0, function()
-        self.running = false
-        timer:stop()
-        callback(unpack(arguments))
-      end)
-    end,
-  })
-end
-
----Create throttled callback.
----First call will be called immediately.
----@generic T: fun(...: any): nil
----@param callback T
----@param timeout_ms integer
-function kit.throttle(callback, timeout_ms)
-  local timer = assert(vim.uv.new_timer())
-  local arguments = nil
-  local last_time = (vim.uv.hrtime() / 1000000) - timeout_ms - 1
-  return setmetatable({
-    timeout_ms = timeout_ms,
-    is_running = function()
-      return timer:is_active()
-    end,
-    stop = function()
-      timer:stop()
-    end,
-  }, {
-    __call = function(self, ...)
-      arguments = { ... }
-
-      if self.is_running() then
-        timer:stop()
-      end
-      local delay_ms = self.timeout_ms - ((vim.uv.hrtime() / 1000000) - last_time)
-      if delay_ms > 0 then
-        timer:start(delay_ms, 0, function()
-          timer:stop()
-          last_time = (vim.uv.hrtime() / 1000000)
-          callback(unpack(arguments))
-        end)
-      else
-        last_time = (vim.uv.hrtime() / 1000000)
-        callback(unpack(arguments))
-      end
-    end,
-  })
 end
 
 do

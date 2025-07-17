@@ -238,11 +238,11 @@ end
 ---@return fun(signal?: integer)
 function System.spawn(command, params)
   command = vim
-      .iter(command)
-      :filter(function(c)
-        return c ~= nil
-      end)
-      :totable()
+    .iter(command)
+    :filter(function(c)
+      return c ~= nil
+    end)
+    :totable()
 
   local cmd = command[1]
   local args = {}
@@ -250,12 +250,10 @@ function System.spawn(command, params)
     table.insert(args, command[i])
   end
 
-  local env = params.env
-  if not env then
-    env = vim.fn.environ()
-    env.NVIM = vim.v.servername
-    env.NVIM_LISTEN_ADDRESS = nil
-  end
+  local env = params.env or {}
+  env = kit.merge(env, vim.fn.environ())
+  env.NVIM = vim.v.servername
+  env.NVIM_LISTEN_ADDRESS = nil
 
   local env_pairs = {}
   for k, v in pairs(env) do

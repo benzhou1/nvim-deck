@@ -45,11 +45,20 @@ do
         return false
       end,
       execute = function(ctx)
-        local win = vim.iter(win_history):find(function(win)
-          return vim.api.nvim_win_is_valid(win) and vim.api.nvim_get_option_value('buftype', {
-            buf = vim.api.nvim_win_get_buf(win),
-          }) == ''
-        end) or vim.api.nvim_get_current_win()
+        win_history = vim.iter(win_history):filter(vim.api.nvim_win_is_valid):totable()
+        local win =
+          -- First, find the normal window recently entered.
+          vim.iter(win_history):find(function(win)
+            local buf = vim.api.nvim_win_get_buf(win)
+            return vim.api.nvim_get_option_value('buftype', { buf = buf }) == ''
+          end)
+          -- If the normal window was not found, try to fallback to a non-deck window.
+          or vim.iter(win_history):find(function(win)
+            local buf = vim.api.nvim_win_get_buf(win)
+            return vim.api.nvim_get_option_value('filetype', { buf = buf }) ~= 'deck'
+          end)
+          -- Finally, fallback to the current window.
+          or vim.api.nvim_get_current_win()
         for _, item in ipairs(ctx.get_action_items()) do
           vim.api.nvim_set_current_win(win)
 
@@ -111,6 +120,15 @@ do
   action.open_vsplit = create_open_action('open_vsplit', { split = 'vertical' })
   --[=[@doc
     category = "action"
+    name = "open_tabnew"
+    desc = """
+      Open `item.data.filename` or `item.data.bufnr`.\n
+      Open at the new tabpage.
+    """
+  ]=]
+  action.open_tabnew = create_open_action('open_tabnew', { split = 'tab' })
+  --[=[@doc
+    category = "action"
     name = "open_keep"
     desc = """
       Open `item.data.filename` or `item.data.bufnr`.\n
@@ -140,13 +158,14 @@ do
   action.open_vsplit_keep = create_open_action('open_vsplit_keep', { split = 'vertical', keep = true })
   --[=[@doc
     category = "action"
-    name = "open_tabnew"
+    name = "open_tabnew_keep"
     desc = """
       Open `item.data.filename` or `item.data.bufnr`.\n
       Open at the new tabpage.
+      But keep the deck window and cursor.
     """
   ]=]
-  action.open_tabnew = create_open_action('open_tabnew', { split = 'tab' })
+  action.open_tabnew_keep = create_open_action('open_tabnew_keep', { split = 'tab', keep = true })
 end
 
 --[=[@doc
@@ -228,7 +247,12 @@ action.delete_buffer = {
         :totable()
     )) then
       for _, target in ipairs(targets) do
-        vim.api.nvim_buf_delete(target, { force = true })
+        local ok, msg = pcall(vim.api.nvim_buf_delete, target, { force = true })
+        if not ok then
+          notify.add_message('default', {
+            { { msg, 'ErrorMsg' } },
+          })
+        end
       end
       ctx.execute()
     end
@@ -305,7 +329,7 @@ action.yank = {
     end
     vim.fn.setreg(vim.v.register, table.concat(contents, '\n'), 'V')
 
-    notify.show({
+    notify.add_message('default', {
       { { ('Yanked %d items.'):format(#contents), 'Normal' } },
     })
   end,
@@ -484,7 +508,7 @@ action.substitute = {
         })
         filename_buf[item.data.filename] = vim.api.nvim_get_current_buf()
         if vim.api.nvim_get_option_value('modified', { buf = 0 }) then
-          notify.show({
+          notify.add_message('default', {
             { { ('Skip. File "%s" is modified.'):format(item.data.filename), 'ErrorMsg' } },
           })
         end
@@ -536,7 +560,7 @@ action.substitute = {
         callback = function()
           local line_count = vim.api.nvim_buf_line_count(buf)
           if line_count ~= #substitute_targets then
-            notify.show({
+            notify.add_message('default', {
               {
                 {
                   ('Line count was changed: %d -> %d'):format(line_count, #substitute_targets),

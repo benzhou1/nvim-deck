@@ -56,7 +56,7 @@ Clipboard.instance = Clipboard.new()
 ---@param ctx deck.Context
 ---@param target_item deck.builtin.source.explorer.Entry
 local function focus(ctx, target_item)
-  for i, item in ipairs(ctx.get_rendered_items()) do
+  for item, i in ctx.iter_rendered_items() do
     if item.data.entry.path == target_item.path then
       ctx.set_cursor(i)
       break
@@ -77,14 +77,12 @@ State.__index = State
 
 ---Create State object.
 ---@param cwd string
+---@param config deck.builtin.source.explorer.State.Config
 ---@return deck.builtin.source.explorer.State
-function State.new(cwd)
+function State.new(cwd, config)
   return setmetatable({
     _cwd = cwd,
-    _config = {
-      auto_resize = true,
-      dotfiles = false,
-    },
+    _config = config,
     _root = Async.run(function()
       local item = misc.get_item_by_path(cwd, 0)
       item.expanded = true
@@ -303,12 +301,18 @@ end
   name = "reveal"
   type = "string"
   desc = "Reveal target path."
+
+  [[options]]
+  name = "config"
+  type = "deck.builtin.source.explorer.State.Config"
+  desc = "State config."
 ]=]
 ---@class deck.builtin.source.explorer.Option
 ---@field cwd string
 ---@field mode 'drawer' | 'filer'
 ---@field narrow? { enabled?: boolean, ignore_globs?: string[]  }
 ---@field reveal? string
+---@field config? deck.builtin.source.explorer.State.Config
 ---@param option deck.builtin.source.explorer.Option
 return function(option)
   if #option.cwd == 0 or vim.fn.isdirectory(option.cwd) == 0 then
@@ -323,9 +327,13 @@ return function(option)
     enabled = true,
     ignore_globs = {},
   })
+  option.config = kit.merge(option.config or {}, {
+    dotfiles = false,
+    auto_resize = true,
+  })
 
   local deck = require('deck')
-  local state = State.new(option.cwd)
+  local state = State.new(option.cwd, option.config)
 
   ---@type deck.Source
   return {
@@ -336,7 +344,7 @@ return function(option)
 
         -- TODO: I can't understand that but change directory to root causes infinite loop...
         if state:get_root().path ~= '/' then
-          vim.cmd.tcd(state:get_root().path)
+          vim.cmd.lcd(state:get_root().path)
         end
 
         if env.first and option.reveal then
@@ -469,6 +477,7 @@ return function(option)
                 require('deck.builtin.source.explorer')(kit.merge({
                   cwd = path,
                   reveal = reveal or path,
+                  config = state:get_config(),
                 }, option)),
                 ctx.get_config()
               )
@@ -606,12 +615,13 @@ return function(option)
               path = IO.join(parent_item.path, path)
 
               if vim.fn.isdirectory(path) == 1 or vim.fn.filereadable(path) == 1 then
-                return require('deck.notify').show({ { 'Already exists: ' .. path } })
+                return notify.add_message('default', { { 'Already exists: ' .. path } })
               end
 
               if path:sub(-1, -1) == '/' then
                 vim.fn.mkdir(path, 'p')
               else
+                vim.fn.mkdir(vim.fs.dirname(vim.fs.normalize(path, { expand_env = false })), 'p')
                 vim.fn.writefile({}, path)
               end
               state:dirty(parent_item.path)
@@ -681,7 +691,7 @@ return function(option)
                 path = IO.join(parent_item.path, path)
 
                 if vim.fn.isdirectory(path) == 1 or vim.fn.filereadable(path) == 1 then
-                  return require('deck.notify').show({ { 'Already exists: ' .. path } })
+                  return notify.add_message('default', { { 'Already exists: ' .. path } })
                 end
 
                 operation
@@ -727,7 +737,7 @@ return function(option)
             table.insert(paths, item.data.filename)
           end
           Clipboard.instance:set({ type = 'copy', paths = paths })
-          notify.show(kit.concat(
+          notify.add_message('default', kit.concat(
             {
               { 'Save clipboard to copy:' },
             },
@@ -758,7 +768,7 @@ return function(option)
             table.insert(paths, item.data.filename)
           end
           Clipboard.instance:set({ type = 'move', paths = paths })
-          notify.show(kit.concat(
+          notify.add_message('default', kit.concat(
             {
               { 'Save clipboard to move:' },
             },

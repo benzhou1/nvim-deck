@@ -118,10 +118,10 @@ function IO.is_directory(path)
   path = IO.normalize(path)
   return Async.run(function()
     return uv_fs_stat(path)
-        :catch(function()
-          return {}
-        end)
-        :await().type == 'directory'
+      :catch(function()
+        return {}
+      end)
+      :await().type == 'directory'
   end)
 end
 
@@ -132,13 +132,13 @@ function IO.exists(path)
   path = IO.normalize(path)
   return Async.run(function()
     return uv_fs_stat(path)
-        :next(function()
-          return true
-        end)
-        :catch(function()
-          return false
-        end)
-        :await()
+      :next(function()
+        return true
+      end)
+      :catch(function()
+        return false
+      end)
+      :await()
   end)
 end
 
@@ -447,7 +447,7 @@ end
 do
   local cache = {
     raw = nil,
-    fix = nil
+    fix = nil,
   }
 
   ---Return the current working directory.
@@ -518,13 +518,19 @@ function IO.dirname(path, level)
     return path
   end
 
-  for i = #path - 1, 1, -1 do
+  local i = #path - 1
+  while i > 0 do
     if path:byte(i) == bytes.slash then
       if level == 1 then
-        return path:sub(1, i - 1)
+        local p = path:sub(1, i - 1)
+        if p == '' then
+          return '/'
+        end
+        return p
       end
       level = level - 1
     end
+    i = i - 1
   end
   return path
 end
