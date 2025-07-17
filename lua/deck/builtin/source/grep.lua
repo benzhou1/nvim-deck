@@ -38,7 +38,7 @@ local System = require('deck.kit.System')
 
   [[options]]
   name = "transform"
-  type = "fun(item: deck.Item, text: string)?"
+  type = "fun(item: deck.Item, text: string, root_dir: string)?"
   desc = "Transform item with matched text."
 
   [[options]]
@@ -56,7 +56,7 @@ local System = require('deck.kit.System')
 ---@field root_dir string
 ---@field ignore_globs? string[]
 ---@field sort? boolean
----@field transform? fun(item: deck.Item, text: string)
+---@field transform? fun(item: deck.Item, text: string, root_dir: string)
 ---@field live? boolean
 ---@field cmd? fun(query: string): string[]
 ---@field name? string
@@ -135,13 +135,10 @@ return function(option)
                   query = query,
                 },
               }
-              if option.transform ~= nil then
-                option.transform(item, text)
-              end
             end
           end
           if option.transform ~= nil then
-            option.transform(item, text, root_dir)
+            option.transform(item, text, option.root_dir)
           end
           if item.display_text ~= nil then
             ctx.item(item)
