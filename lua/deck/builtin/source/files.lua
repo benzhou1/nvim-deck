@@ -1,43 +1,61 @@
 local IO = require('deck.kit.IO')
 local System = require('deck.kit.System')
 
-local home = IO.normalize(vim.fn.expand('~'))
-local home_pre_pat = '^' .. vim.pesc(home)
-
----@param filename string
----@return deck.Item
-local function to_item(filename)
-  local display_text = filename
-  if vim.startswith(display_text, home) then
-    display_text = display_text:gsub(home_pre_pat, '~')
-  end
-  local item = {
-    display_text = display_text,
-    filename = filename,
-  }
-  item.data = item
-  return item
-end
-
----@alias deck.builtin.source.files.Finder fun(root_dir: string, ignore_globs: string[], ctx: deck.ExecuteContext)
+---@class FilesOptions
+---@field root_dir? string
+---@field ignore_globs? string[]
+---@field transform? fun(item: deck.Item)
+---@alias deck.builtin.source.files.Finder fun(option: FilesOptions, ctx: deck.ExecuteContext)
 
 ---@type deck.builtin.source.files.Finder
-local function ripgrep(root_dir, ignore_globs, ctx)
+---@param opts FilesOptions
+local function ripgrep(opts, ctx)
   local command = { 'rg', '--files', '-.' }
-  for _, glob in ipairs(ignore_globs or {}) do
+  for _, glob in ipairs(opts.ignore_globs or {}) do
     table.insert(command, '--glob')
     table.insert(command, '!' .. glob)
   end
 
-  root_dir = vim.fs.normalize(root_dir)
+  opts.root_dir = vim.fs.normalize(opts.root_dir)
+
+  ---The metatable for `item.data.filename`.
+  local filename_mt = {
+    __index = function(self, key)
+      if key == 'filename' then
+        return IO.join(self.root_dir, self.display_text)
+      end
+      return rawget(self, key)
+    end,
+  }
+
+  ---@param text string
+  ---@return deck.Item
+  local function to_item(text)
+    local item = setmetatable({
+      display_text = text,
+      filter_text = text,
+      root_dir = opts.root_dir,
+      filename = text,
+    }, filename_mt)
+    item.data = item
+    return item
+  end
+
   ctx.on_abort(System.spawn(command, {
-    cwd = root_dir,
+    cwd = opts.root_dir,
     env = {},
     buffering = System.LineBuffering.new({
       ignore_empty = true,
     }),
     on_stdout = function(text)
-      ctx.item(to_item(IO.join(root_dir, text)))
+      local item = to_item(text)
+      if opts.transform ~= nil then
+        opts.transform(item)
+      end
+      if not item.data.filename then
+        return
+      end
+      ctx.item(item)
     end,
     on_stderr = function()
       -- noop
@@ -49,15 +67,33 @@ local function ripgrep(root_dir, ignore_globs, ctx)
 end
 
 ---@type deck.builtin.source.files.Finder
-local function walk(root_dir, ignore_globs, ctx)
+local function walk(opts, ctx)
   local ignore_glob_patterns = vim
-      .iter(ignore_globs or {})
+      .iter(opts.ignore_globs or {})
       :map(function(glob)
         return vim.glob.to_lpeg(glob)
       end)
       :totable()
 
-  IO.walk(root_dir, function(err, entry)
+  local home = IO.normalize(vim.fn.expand('~'))
+  local home_pre_pat = '^' .. vim.pesc(home)
+
+  ---@param filename string
+  ---@return deck.Item
+  local function to_item(filename)
+    local display_text = filename
+    if vim.startswith(display_text, home) then
+      display_text = display_text:gsub(home_pre_pat, '~')
+    end
+    local item = {
+      display_text = display_text,
+      filename = filename,
+    }
+    item.data = item
+    return item
+  end
+
+  IO.walk(opts.root_dir, function(err, entry)
     if err then
       return
     end
@@ -102,8 +138,13 @@ end
   name = "root_dir"
   type = "string"
   desc = "Target root directory."
+
+  [[options]]
+  name = "transform"
+  type = "fun(item: deck.Item)?"
+  desc = "Function that allows you to modify an item before it is added to the picker"
 ]=]
----@param option { root_dir: string, ignore_globs?: string[] }
+---@param option FilesOptions
 return function(option)
   local root_dir = vim.fs.normalize(vim.fn.fnamemodify(option.root_dir, ':p'))
   if vim.fn.filereadable(root_dir) == 1 then
@@ -121,10 +162,17 @@ return function(option)
         end
       end
 
+      local root_path = option.root_dir
+      local config = ctx.get_config()
+      if config.toggles.cwd == true then
+        root_path = vim.fn.getcwd()
+      end
+
+      local new_option = vim.tbl_deep_extend('keep', { root_dir = root_path }, option)
       if vim.fn.executable('rg') == 1 then
-        ripgrep(root_dir, ignore_globs, ctx)
+        ripgrep(new_option, ctx)
       else
-        walk(root_dir, ignore_globs, ctx)
+        walk(new_option, ctx)
       end
     end,
     actions = {

@@ -73,6 +73,20 @@ do
           if item.data.lnum then
             vim.api.nvim_win_set_cursor(0, { item.data.lnum, (item.data.col or 1) - 1 })
           end
+          if item.data.ctag then
+            vim.fn.clearmatches()
+            vim.schedule(function()
+              local lnum = vim.fn.search(item.data.ctag, 'W')
+              if lnum == 0 then
+                lnum = vim.fn.search(item.data.ctag, 'bW')
+              end
+
+              if lnum ~= 0 then
+                vim.cmd("normal! m'")
+              end
+              vim.cmd.normal('zz')
+            end)
+          end
         end
 
         if not option.keep then

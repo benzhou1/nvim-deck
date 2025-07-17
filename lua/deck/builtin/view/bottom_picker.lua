@@ -1,11 +1,15 @@
----@param config { max_height: integer }
+---@param config { max_height: number, static_height: integer }
 ---@return deck.View
 return function(config)
   return require('deck.builtin.view.edge_picker')('bottom', function(ctx)
     local buf_height = vim.api.nvim_buf_line_count(ctx.buf)
+    if config.static_height then
+      return config.static_height
+    end
     if config.max_height <= buf_height then
       return config.max_height
     end
+
     local extmarks = vim.api.nvim_buf_get_extmarks(ctx.buf, ctx.ns, 0, -1, {
       type = 'virt_lines',
       details = true,
@@ -17,6 +21,9 @@ return function(config)
       end
     end
     local min_height = vim.o.laststatus == 0 and vim.o.cmdheight == 0 and 2 or 1
+    if config.static_height then
+      return config.static_height
+    end
     return math.max(min_height, buf_height)
   end)
 end

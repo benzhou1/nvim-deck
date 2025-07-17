@@ -48,6 +48,7 @@ return function(option)
     end,
     actions = {
       require('deck').alias_action('default', 'deck.actions.execute'),
+      require('deck').alias_action('hide', 'deck.actions.hide'),
       {
         name = 'deck.actions.execute',
         execute = function(next_ctx)
@@ -66,6 +67,15 @@ return function(option)
             next_ctx.hide()
             next_ctx.dispose()
           end
+        end,
+      },
+      {
+        name = 'deck.actions.hide',
+        execute = function(ctx)
+          local prev_ctx = option.context
+          prev_ctx.show()
+          ctx.hide()
+          ctx.dispose()
         end,
       },
     },

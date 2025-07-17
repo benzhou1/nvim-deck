@@ -49,6 +49,7 @@ local Context = require('deck.Context')
 ---@field public display_text string|(deck.VirtualText[])
 ---@field public highlights? deck.Highlight[]
 ---@field public filter_text? string
+---@field public score_bonus? integer
 ---@field public dedup_id? string
 ---@field public data? table
 
@@ -119,7 +120,7 @@ local Context = require('deck.Context')
 ---@alias deck.PreviewerResolveFunction fun(ctx: deck.Context, item: deck.Item): any
 
 ---@doc.type
----@alias deck.PreviewerPreviewFunction fun(ctx: deck.Context, item: deck.Item, env: { win: integer })
+---@alias deck.PreviewerPreviewFunction fun(ctx: deck.Context, item: deck.Item, env: { open_preview_win: fun(): integer? }): nil|fun()
 
 ---@doc.type
 ---@class deck.StartPreset
@@ -133,13 +134,13 @@ local Context = require('deck.Context')
 ---@field public is_visible fun(ctx: deck.Context): boolean
 ---@field public show fun(ctx: deck.Context)
 ---@field public hide fun(ctx: deck.Context)
----@field public redraw fun(ctx: deck.Context)
+---@field public open_preview_win fun(ctx: deck.Context): integer?
 ---@field public prompt fun(ctx: deck.Context)
----@field public scroll_preview fun(ctx: deck.Context, delta: integer)
 
 ---@doc.type
 ---@class deck.PerformanceConfig
 ---@field public sync_timeout_ms integer
+---@field public redraw_tick_ms integer
 ---@field public gather_budget_ms integer
 ---@field public gather_batch_size integer
 ---@field public gather_interrupt_ms integer
@@ -150,6 +151,14 @@ local Context = require('deck.Context')
 ---@field public render_batch_size integer
 ---@field public render_interrupt_ms integer
 ---@field public render_delay_ms integer
+---@field public topk_size integer
+
+---@doc.type
+---@class deck.StartConfigSpecifier.Preview
+---@field public win_opts? fun(curr_height?: integer): table
+---@field public set_title? fun(win_config: table, filename: string?): table
+---@field public win_hl? string
+---@field public mode? string
 
 ---@doc.type
 ---@class deck.StartConfigSpecifier
@@ -167,6 +176,7 @@ local Context = require('deck.Context')
 ---@field public dedup? boolean
 ---@field public query? string
 ---@field public auto_abort? boolean
+---@field public preview? deck.StartConfigSpecifier.Preview
 
 ---@doc.type
 ---@class deck.StartConfig: deck.StartConfigSpecifier
@@ -180,6 +190,11 @@ local Context = require('deck.Context')
 ---@field public disable_previewers? string[]
 ---@field public dedup boolean
 ---@field public query string
+---@field public root_dir string?
+---@field public toggles table<string, boolean>
+---@field public start_prompt boolean
+---@field public before_prompt_cb fun(ctx: deck.Context)
+---@field public after_prompt_cb fun(ctx: deck.Context)
 
 ---@doc.type
 ---@class deck.ConfigSpecifier
@@ -223,10 +238,11 @@ local internal = {
           max_height = math.floor(vim.o.lines * 0.25),
         })
       end,
-      matcher = require('deck.builtin.matcher').default,
+      matcher = require('deck.builtin.matcher.default'),
       history = true,
       performance = {
         sync_timeout_ms = 400,
+        redraw_tick_ms = 96,
         gather_budget_ms = 16,
         gather_batch_size = 200,
         gather_interrupt_ms = 8,
@@ -234,13 +250,18 @@ local internal = {
         filter_batch_size = 200,
         filter_interrupt_ms = 8,
         render_bugdet_ms = 16,
-        render_batch_size = 500,
+        render_batch_size = 2000,
         render_interrupt_ms = 8,
-        render_delay_ms = 800,
+        render_delay_ms = 280,
+        topk_size = 100,
       },
       dedup = true,
       query = '',
       auto_abort = true,
+      preview = {},
+      mode = 'def',
+      toggles = {},
+      start_prompt = false,
     },
   },
 }
@@ -330,8 +351,7 @@ function deck.start(sources, start_config_specifier)
   local source = sources --[[@as deck.Source]]
 
   --- check start_config.
-  local start_config = validate.start_config(kit.merge(start_config_specifier or {},
-    internal.config.default_start_config or {}) --[[@as deck.StartConfig]])
+  local start_config = validate.start_config(kit.merge(start_config_specifier or {}, internal.config.default_start_config or {}) --[[@as deck.StartConfig]])
   start_config.name = start_config.name or source.name
 
   -- create context.

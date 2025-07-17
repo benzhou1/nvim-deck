@@ -1,37 +1,35 @@
 local IO = require('deck.kit.IO')
 local System = require('deck.kit.System')
 
-local home = vim.fn.fnamemodify('~', ':p')
+local home = IO.normalize(vim.fn.expand('~'))
+local home_pre_pat = '^' .. vim.pesc(home)
 
 ---@param filename string
 ---@return deck.Item
 local function to_item(filename)
   local display_text = filename
-  if #filename > #home and vim.startswith(filename, home) then
-    display_text = ('~/%s'):format(filename:sub(#home + 1))
+  if vim.startswith(display_text, home) then
+    display_text = display_text:gsub(home_pre_pat, '~')
   end
-  if vim.endswith(display_text, '/') then
-    display_text = display_text:sub(1, #display_text - 1)
-  end
-  return {
+  local item = {
     display_text = display_text,
-    data = {
-      filename = filename,
-    },
+    filename = filename,
   }
+  item.data = item
+  return item
 end
 
----@alias deck.builtin.source.dirs.Finder fun(root_dir: string, ignore_globs: string[], ctx: deck.ExecuteContext)
+---@alias deck.builtin.source.dirs.Finder fun(opts: table, ctx: deck.ExecuteContext)
 
 ---@type deck.builtin.source.dirs.Finder
-local function fd(root_dir, ignore_globs, ctx)
+local function fd(opts, ctx)
   local command = { 'fd', '--type', 'd' }
-  for _, glob in ipairs(ignore_globs or {}) do
+  for _, glob in ipairs(opts.ignore_globs or {}) do
     table.insert(command, '--exclude')
     table.insert(command, glob)
   end
 
-  root_dir = IO.normalize(root_dir)
+  local root_dir = IO.normalize(opts.root_dir)
   ctx.on_abort(System.spawn(command, {
     cwd = root_dir,
     env = {},
@@ -39,7 +37,11 @@ local function fd(root_dir, ignore_globs, ctx)
       ignore_empty = true,
     }),
     on_stdout = function(text)
-      ctx.item(to_item(IO.join(root_dir, text)))
+      local item = to_item(IO.join(opts.root_dir, text))
+      if opts.transform then
+        opts.transform(item)
+      end
+      ctx.item(item)
     end,
     on_stderr = function()
       -- noop
@@ -51,15 +53,15 @@ local function fd(root_dir, ignore_globs, ctx)
 end
 
 ---@type deck.builtin.source.dirs.Finder
-local function walk(root_dir, ignore_globs, ctx)
+local function walk(opts, ctx)
   local ignore_glob_patterns = vim
-    .iter(ignore_globs or {})
+    .iter(opts.ignore_globs or {})
     :map(function(glob)
       return vim.glob.to_lpeg(glob)
     end)
     :totable()
 
-  IO.walk(root_dir, function(err, entry)
+  IO.walk(opts.root_dir, function(err, entry)
     if err then
       return
     end
@@ -76,7 +78,11 @@ local function walk(root_dir, ignore_globs, ctx)
     end
 
     if entry.type == 'directory' then
-      ctx.item(to_item(entry.path))
+      local item = to_item(entry.path)
+      if opts.transform then
+        opts.transform(item)
+      end
+      ctx.item(item)
     end
   end):next(function()
     ctx.done()
@@ -104,8 +110,13 @@ end
   name = "root_dir"
   type = "string"
   desc = "Target root directory."
+
+  [[options]]
+  name = "transform"
+  type = "fun(item: deck.Item)"
+  desc = "Pre process item"
 ]=]
----@param option { root_dir: string, ignore_globs?: string[] }
+---@param option { root_dir: string, ignore_globs?: string[], transform?: fun(item: deck.Item) }
 return function(option)
   local root_dir = IO.normalize(vim.fn.fnamemodify(option.root_dir, ':p'))
   if vim.fn.filereadable(root_dir) == 1 then
@@ -117,16 +128,21 @@ return function(option)
   return {
     name = 'dirs',
     execute = function(ctx)
+      local config = ctx.get_config()
+      if config.toggles.cwd == true then
+        root_dir = vim.fn.getcwd()
+      end
       for _, ignore_glob in ipairs(ignore_globs) do
         if vim.glob.to_lpeg(ignore_glob):match(root_dir) then
           return ctx.done()
         end
       end
 
+      local new_option = vim.tbl_deep_extend('keep', { root_dir = root_dir }, option)
       if vim.fn.executable('fd') == 1 then
-        fd(root_dir, ignore_globs, ctx)
+        fd(new_option, ctx)
       else
-        walk(root_dir, ignore_globs, ctx)
+        walk(new_option, ctx)
       end
     end,
   }

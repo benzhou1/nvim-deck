@@ -15,6 +15,11 @@ local System = require('deck.kit.System')
   """
 
   [[options]]
+  name = "name"
+  type = "string?"
+  desc = "Override grep source name."
+
+  [[options]]
   name = "root_dir"
   type = "string"
   desc = "Target root directory."
@@ -24,27 +29,56 @@ local System = require('deck.kit.System')
   type = "string[]?"
   default = "[]"
   desc = "Ignore glob patterns."
+
+  [[options]]
+  name = "sort"
+  type = "boolean?"
+  default = "false"
+  desc = "Sort results by filename and line number."
+
+  [[options]]
+  name = "transform"
+  type = "fun(item: deck.Item, text: string, root_dir: string)?"
+  desc = "Transform item with matched text."
+
+  [[options]]
+  name = "cmd"
+  type = "fun(query: string): string[]?"
+  desc = "Custom command to execute."
+
+  [[options]]
+  name = "live"
+  type = "boolean?"
+  default = "false"
+  desc = "Enable live grep."
 ]=]
 ---@class deck.builtin.source.grep.Option
 ---@field root_dir string
 ---@field ignore_globs? string[]
+---@field sort? boolean
+---@field transform? fun(item: deck.Item, text: string, root_dir: string)
+---@field live? boolean
+---@field cmd? fun(query: string): string[]
+---@field name? string
 ---@param option deck.builtin.source.grep.Option
 return function(option)
   local function parse_query(query)
-    local dynamic_query, matcher_query = unpack(vim.split(query, '  '))
+    local sep = query:find('  ') or #query
+    local dynamic_query = query:sub(1, sep)
+    local matcher_query = query:sub(sep + 2)
     return {
-      dynamic_query = (dynamic_query or ''):gsub('^%s+', ''):gsub('%s+$', ''),
-      matcher_query = (matcher_query or ''):gsub('^%s+', ''):gsub('%s+$', ''),
+      dynamic_query = dynamic_query:gsub('^%s+', ''):gsub('%s+$', ''),
+      matcher_query = matcher_query:gsub('^%s+', ''):gsub('%s+$', ''),
     }
   end
 
   ---@type deck.Source
   return {
-    name = 'grep',
+    name = option.name or 'grep',
     parse_query = parse_query,
     execute = function(ctx)
       local query = parse_query(ctx.get_query()).dynamic_query
-      if query == '' then
+      if option.live ~= true and query == '' then
         return ctx.done()
       end
 
@@ -60,31 +94,54 @@ return function(option)
           table.insert(command, '!' .. glob)
         end
       end
+      if option.sort then
+        table.insert(command, '--sort-files')
+      end
       table.insert(command, query)
 
+      if option.cmd ~= nil then
+        command = option.cmd(query)
+      end
+
+      local root_dir = option.root_dir
+      local config = ctx.get_config()
+      if config.toggles.cwd == true then
+        root_dir = vim.fn.getcwd()
+      end
+
       ctx.on_abort(System.spawn(command, {
-        cwd = option.root_dir,
+        cwd = root_dir,
         env = {},
         buffering = System.LineBuffering.new({
           ignore_empty = true,
         }),
         on_stdout = function(text)
-          local filename = text:match('^[^:]+')
-          local lnum = tonumber(text:match(':(%d+):'))
-          local col = tonumber(text:match(':%d+:(%d+):'))
-          local match = text:match(':%d+:%d+:(.*)$')
-          if filename and match then
-            ctx.item({
-              display_text = {
-                { ('%s (%s:%s): '):format(filename, lnum, col) },
-                { match,                                       'Comment' },
-              },
-              data = {
-                filename = IO.join(option.root_dir, filename),
-                lnum = lnum,
-                col = col,
-              },
-            })
+          local item = { data = { query = query } }
+          if not option.transform then
+            local filename = text:match('^[^:]+')
+            local lnum = tonumber(text:match(':(%d+):'))
+            local col = tonumber(text:match(':%d+:(%d+):'))
+            local match = text:match(':%d+:%d+:(.*)$')
+            if filename and match then
+              item = {
+                display_text = {
+                  { ('%s (%s:%s): '):format(filename, lnum, col) },
+                  { match, 'Comment' },
+                },
+                data = {
+                  filename = IO.join(root_dir, filename),
+                  lnum = lnum,
+                  col = col,
+                  query = query,
+                },
+              }
+            end
+          end
+          if option.transform ~= nil then
+            option.transform(item, text, option.root_dir)
+          end
+          if item.display_text ~= nil then
+            ctx.item(item)
           end
         end,
         on_exit = function()

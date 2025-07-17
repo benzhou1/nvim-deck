@@ -79,7 +79,7 @@ return setmetatable({
     table.insert(self.file.contents, target_path)
   end,
 }, {
-  ---@param option { ignore_paths?: string[] }
+  ---@param option { ignore_paths?: string[], transform?: fun(item: deck.Item) }
   __call = function(self, option)
     option = option or {}
     option.ignore_paths = option.ignore_paths or {}
@@ -107,12 +107,17 @@ return setmetatable({
             local path = contents[i]
             if not ignore_path_map[path] then
               if vim.fn.isdirectory(path) == 1 then
-                ctx.item({
+                local item = {
                   display_text = vim.fn.fnamemodify(path, ':~'),
                   data = {
                     filename = path,
                   },
-                })
+                }
+                if option.transform then
+                  option.transform(item)
+                end
+
+                ctx.item(item)
                 sync_count = sync_count - 1
               end
             end
@@ -126,12 +131,16 @@ return setmetatable({
             local path = contents[i]
             if not ignore_path_map[path] then
               if IO.exists(path):await() then
-                ctx.item({
+                local item = {
                   display_text = vim.fn.fnamemodify(path, ':~'),
                   data = {
                     filename = path,
                   },
-                })
+                }
+                if option.transform then
+                  option.transform(item)
+                end
+                ctx.item(item)
               end
             end
             i = i - 1

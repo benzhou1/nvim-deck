@@ -392,7 +392,7 @@ require('deck').register_previewer({
     return item.data.filename and vim.fn.filereadable(item.data.filename) == 1
   end,
   preview = function(_, item, env)
-    vim.api.nvim_win_call(env.win, function()
+    vim.api.nvim_win_call(env.open_preview_win() --[[@as integer]], function()
       vim.fn.termopen(('bat --color=always %s'):format(item.data.filename))
     end)
   end
@@ -419,6 +419,16 @@ deck.start(require('deck.builtin.source.buffers')({
   ignore_paths = { vim.fn.expand('%:p'):gsub('/$', '') },
   nofile = false,
 }))
+```
+
+### colorscheme
+
+Show colorschemes.
+
+_No options_
+
+```lua
+deck.start(require('deck.builtin.source.colorschemes')())
 ```
 
 ### deck.actions
@@ -481,6 +491,7 @@ Explorer source.
 | mode   | 'drawer' \| 'filer'                            |         | Mode of explorer.      |
 | narrow | { enabled?: boolean, ignore_globs?: string[] } |         | Narrow finder options. |
 | reveal | string                                         |         | Reveal target path.    |
+| config | deck.builtin.source.explorer.State.Config      |         | State config.          |
 
 ```lua
 To use explorer, you must set `start_preset` or use `require('deck.easy').setup()`.
@@ -611,10 +622,11 @@ deck.start(require('deck.builtin.source.git.status')({
 
 Grep files under specified root directory. (required `ripgrep`)
 
-| Name         | Type      | Default | Description            |
-| ------------ | --------- | ------- | ---------------------- |
-| root_dir     | string    |         | Target root directory. |
-| ignore_globs | string[]? | []      | Ignore glob patterns.  |
+| Name         | Type      | Default | Description                               |
+| ------------ | --------- | ------- | ----------------------------------------- |
+| root_dir     | string    |         | Target root directory.                    |
+| ignore_globs | string[]? | []      | Ignore glob patterns.                     |
+| sort         | boolean?  | false   | Sort results by filename and line number. |
 
 ```lua
 deck.start(require('deck.builtin.source.grep')({
@@ -1174,12 +1186,18 @@ Start deck with given sources.
 ---@field get_select_all fun(): boolean
 ---@field set_preview_mode fun(preview_mode: boolean)
 ---@field get_preview_mode fun(): boolean
----@field get_items fun(): deck.Item[]
+---@field count_items fun(): integer
+---@field count_filtered_items fun(): integer
+---@field count_rendered_items fun(): integer
+---@field get_item fun(idx: integer): deck.Item?
+---@field get_filtered_item fun(idx: integer): deck.Item?
+---@field get_rendered_item fun(idx: integer): deck.Item?
+---@field iter_items fun(i?: integer, j?: integer): fun(): deck.Item
+---@field iter_filtered_items fun(i?: integer, j?: integer): fun(): deck.Item
+---@field iter_rendered_items fun(i?: integer, j?: integer): fun(): deck.Item
 ---@field get_cursor_item fun(): deck.Item?
----@field get_action_items fun(): deck.Item[]
----@field get_filtered_items fun(): deck.Item[]
----@field get_rendered_items fun(): deck.Item[]
 ---@field get_selected_items fun(): deck.Item[]
+---@field get_action_items fun(): deck.Item[]
 ---@field get_actions fun(): deck.Action[]
 ---@field get_decorators fun(): deck.Decorator[]
 ---@field get_previewer fun(): deck.Previewer?
@@ -1189,7 +1207,8 @@ Start deck with given sources.
 ---@field dispose fun()
 ---@field disposed fun(): boolean
 ---@field on_dispose fun(callback: fun()): fun()
----@field on_redraw fun(callback: fun())
+---@field on_redraw_sync fun(callback: fun())
+---@field on_redraw_tick fun(callback: fun())
 ---@field on_show fun(callback: fun())
 ---@field on_hide fun(callback: fun())
 ```
@@ -1266,6 +1285,7 @@ Start deck with given sources.
 ---@field public display_text string|(deck.VirtualText[])
 ---@field public highlights? deck.Highlight[]
 ---@field public filter_text? string
+---@field public score_bonus? integer
 ---@field public dedup_id? string
 ---@field public data? table
 ```
@@ -1277,6 +1297,7 @@ Start deck with given sources.
 ```lua
 ---@class deck.PerformanceConfig
 ---@field public sync_timeout_ms integer
+---@field public redraw_tick_ms integer
 ---@field public gather_budget_ms integer
 ---@field public gather_batch_size integer
 ---@field public gather_interrupt_ms integer
@@ -1287,6 +1308,7 @@ Start deck with given sources.
 ---@field public render_batch_size integer
 ---@field public render_interrupt_ms integer
 ---@field public render_delay_ms integer
+---@field public topk_size integer
 ```
 
 ```vimdoc
@@ -1378,9 +1400,8 @@ Start deck with given sources.
 ---@field public is_visible fun(ctx: deck.Context): boolean
 ---@field public show fun(ctx: deck.Context)
 ---@field public hide fun(ctx: deck.Context)
----@field public redraw fun(ctx: deck.Context)
+---@field public open_preview_win fun(ctx: deck.Context): integer?
 ---@field public prompt fun(ctx: deck.Context)
----@field public scroll_preview fun(ctx: deck.Context, delta: integer)
 ```
 
 <!-- auto-generate-e:type -->
