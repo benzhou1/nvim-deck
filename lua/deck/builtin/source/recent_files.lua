@@ -28,6 +28,18 @@ local Async = require('deck.kit.Async')
   type = "string[]?"
   default = "[]"
   desc = "Ignore paths."
+
+  [[options]]
+  name = "transform"
+  type = "fun(item: deck.Item)?"
+  default = "nil"
+  desc = "Transform item before listing."
+
+  [[options]]
+  name = "limit"
+  type = "integer?"
+  default = "nil"
+  desc = "Limits the number of recent items."
 ]=]
 return setmetatable({
   file = MemoryFile.new(vim.fs.normalize('~/.deck.recent_files')),
@@ -95,6 +107,7 @@ return setmetatable({
   ---@class RecentFilesOptions
   ---@field ignore_paths string[]
   ---@field transform fun(item: deck.Item)
+  ---@field limit integer?
   ---@param option RecentFilesOptions
   __call = function(self, option)
     option = option or {}
@@ -113,6 +126,7 @@ return setmetatable({
         local contents = self.file.contents
         Async.run(function()
           local i = #contents
+          local count = 0
           -- sync items.
           while i >= 1 do
             local path = contents[i]
@@ -132,6 +146,10 @@ return setmetatable({
                 end
                 ctx.item(item)
                 sync_count = sync_count - 1
+                count = count + 1
+                if option.limit and count >= option.limit then
+                  break
+                end
               end
             end
             if sync_count == 0 then
@@ -154,6 +172,10 @@ return setmetatable({
                   option.transform(item)
                 end
                 ctx.item(item)
+                count = count + 1
+                if option.limit and count >= option.limit then
+                  break
+                end
               end
             end
             i = i - 1
