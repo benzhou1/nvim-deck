@@ -22,7 +22,7 @@ local function ripgrep(opts, ctx)
   local filename_mt = {
     __index = function(self, key)
       if key == 'filename' then
-        return IO.join(self.root_dir, self.display_text)
+        return IO.join(self.root_dir, self.text)
       end
       return rawget(self, key)
     end,
@@ -35,7 +35,7 @@ local function ripgrep(opts, ctx)
       display_text = text,
       filter_text = text,
       root_dir = opts.root_dir,
-      filename = text,
+      text = text,
     }, filename_mt)
     item.data = item
     return item
@@ -69,11 +69,11 @@ end
 ---@type deck.builtin.source.files.Finder
 local function walk(opts, ctx)
   local ignore_glob_patterns = vim
-      .iter(opts.ignore_globs or {})
-      :map(function(glob)
-        return vim.glob.to_lpeg(glob)
-      end)
-      :totable()
+    .iter(opts.ignore_globs or {})
+    :map(function(glob)
+      return vim.glob.to_lpeg(glob)
+    end)
+    :totable()
 
   local home = IO.normalize(vim.fn.expand('~'))
   local home_pre_pat = '^' .. vim.pesc(home)
@@ -162,7 +162,7 @@ return function(option)
         end
       end
 
-      local root_path = option.root_dir
+      local root_path = root_dir
       local config = ctx.get_config()
       if config.toggles.cwd == true then
         root_path = vim.fn.getcwd()
