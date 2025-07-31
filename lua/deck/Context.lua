@@ -844,12 +844,12 @@ function Context.create(id, source, start_config, prev)
               end
             end
           end
-          error(('Available Action not found: %s'):format(name))
+          vim.notify(('Available Action not found: %s'):format(name), vim.log.levels.ERROR)
         end)
         nested = nested - 1
         if not ok then
           if nested > 0 then
-            error(v)
+            vim.notify(v, vim.log.levels.ERROR)
           else
             notify.add_message('default', {
               { { vim.inspect(v), 'WarningMsg' } },
