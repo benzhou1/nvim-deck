@@ -83,10 +83,14 @@ return function(sources)
       return kit.concat(acc, vim.iter(source.actions or {}):map(function(action)
         local resolve_action = action.resolve
         action.resolve = function(ctx)
-          if resolve_source(ctx) then
-            return resolve_action(ctx)
+          local match_source = resolve_source(ctx)
+          if not match_source then
+            return false
           end
-          return true
+          if resolve_action == nil then
+            return true
+          end
+          return resolve_action(ctx)
         end
         return action
       end):totable())
