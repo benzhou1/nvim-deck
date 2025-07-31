@@ -347,7 +347,7 @@ function Buffer:_step_render()
     for item in self._topk:iter_items() do
       rendering_lines[#rendering_lines + 1] = item.display_text
     end
-    vim.api.nvim_buf_set_lines(self._bufnr, 0, self._topk_rendered_count, false, rendering_lines)
+    vim.api.nvim_buf_set_lines(self._bufnr, 0, math.max(1, self._topk_rendered_count), false, rendering_lines)
 
     -- expand/shrink items_rendered table.
     local new_topk_count = self._topk:count_items()
